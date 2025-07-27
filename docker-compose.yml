@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0
+    container_name: farmer_help_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: farm_to_table
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - farmer_help_network
+
+  # Go Backend Service
+  backend:
+    build:
+      context: ./server-go
+      dockerfile: Dockerfile
+    container_name: farmer_help_backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/farm_to_table?authSource=admin
+      - JWT_SECRET=your-super-secret-jwt-key-for-production
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000
+    depends_on:
+      - mongodb
+    networks:
+      - farmer_help_network
+    volumes:
+      - ./server-go:/app
+    command: ["./wait-for-it.sh", "mongodb:27017", "--", "go", "run", "main.go"]
+
+  # React Frontend Service
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: farmer_help_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080/api
+      - REACT_APP_STRIPE_PUBLISHABLE_KEY=${REACT_APP_STRIPE_PUBLISHABLE_KEY}
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    networks:
+      - farmer_help_network
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    stdin_open: true
+    tty: true
+
+  # Nginx Reverse Proxy (Production)
+  nginx:
+    image: nginx:alpine
+    container_name: farmer_help_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - farmer_help_network
+    profiles:
+      - production
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  farmer_help_network:
+    driver: bridge

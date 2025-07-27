@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0
+    container_name: farmer_help_mongodb_prod
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: farm_to_table
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - farmer_help_network
+    # Don't expose port in production
+
+  # Go Backend Service
+  backend:
+    build:
+      context: ./server-go
+      dockerfile: Dockerfile
+    container_name: farmer_help_backend_prod
+    restart: always
+    environment:
+      - PORT=8080
+      - MONGODB_URI=mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/farm_to_table?authSource=admin
+      - JWT_SECRET=${JWT_SECRET}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - NODE_ENV=production
+    depends_on:
+      - mongodb
+    networks:
+      - farmer_help_network
+
+  # React Frontend Service (Production Build)
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      target: production
+    container_name: farmer_help_frontend_prod
+    restart: always
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL}
+      - REACT_APP_STRIPE_PUBLISHABLE_KEY=${REACT_APP_STRIPE_PUBLISHABLE_KEY}
+    depends_on:
+      - backend
+    networks:
+      - farmer_help_network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: farmer_help_nginx_prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - farmer_help_network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  farmer_help_network:
+    driver: bridge

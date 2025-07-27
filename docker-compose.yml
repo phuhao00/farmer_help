@@ -23,6 +23,8 @@ services:
     build:
       context: ./server-go
       dockerfile: Dockerfile
+      args:
+        - GOPROXY=https://proxy.golang.org,direct
     container_name: farmer_help_backend
     restart: unless-stopped
     ports:
@@ -39,7 +41,7 @@ services:
       - farmer_help_network
     volumes:
       - ./server-go:/app
-    command: ["./wait-for-it.sh", "mongodb:27017", "--", "go", "run", "main.go"]
+    command: ["./wait-for-it.sh", "mongodb:27017", "--", "./main"]
 
   # React Frontend Service
   frontend:

@@ -1,41 +1,34 @@
-# Build stage
-FROM golang:1.21-alpine AS builder
+# Use official golang image
+FROM golang:1.21-alpine
 
 # Install git and ca-certificates
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apk add --no-cache git ca-certificates bash
 
 # Set working directory
 WORKDIR /app
 
-# Copy go mod files
+# Set Go environment
+ENV GO111MODULE=on
+ENV GOPROXY=https://proxy.golang.org,direct
+
+# Copy go mod files first for better caching
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download
+# Clean module cache and download dependencies
+RUN go clean -modcache && go mod download
 
 # Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
-
-# Final stage
-FROM alpine:latest
-
-# Install ca-certificates and bash for wait-for-it script
-RUN apk --no-cache add ca-certificates bash
-
-WORKDIR /root/
-
-# Copy the binary from builder stage
-COPY --from=builder /app/main .
-
-# Copy wait-for-it script
+# Copy and set permissions for wait-for-it script
 COPY wait-for-it.sh .
 RUN chmod +x wait-for-it.sh
+
+# Build the application
+RUN go build -o main .
 
 # Expose port
 EXPOSE 8080
 
-# Command to run
+# Default command
 CMD ["./main"]

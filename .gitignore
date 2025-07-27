@@ -7,7 +7,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # Go dependencies and build artifacts
-vendor/
+# vendor/ - keeping vendor directory for Docker builds
 *.exe
 *.exe~
 *.dll

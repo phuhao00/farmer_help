@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -16,23 +17,44 @@ func main() {
 		log.Println("No .env file found")
 	}
 
-	// Set Gin mode
-	gin.SetMode(gin.ReleaseMode)
+	// Set Gin mode based on environment
+	ginMode := os.Getenv("GIN_MODE")
+	if ginMode == "" {
+		ginMode = gin.ReleaseMode
+	}
+	gin.SetMode(ginMode)
 
 	// Create Gin router
 	r := gin.Default()
 
 	// CORS middleware
-	config := cors.DefaultConfig()
-	config.AllowAllOrigins = true
-	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
-	r.Use(cors.New(config))
+	corsConfig := cors.DefaultConfig()
+	
+	// Get allowed origins from environment
+	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+	if allowedOrigins != "" {
+		corsConfig.AllowOrigins = strings.Split(allowedOrigins, ",")
+	} else {
+		corsConfig.AllowAllOrigins = true
+	}
+	
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
+	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	r.Use(cors.New(corsConfig))
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "ok",
 			"message": "Farmer Help API is running",
+		})
+	})
+
+	// API status endpoint
+	r.GET("/api/status", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "API is working",
+			"version": "1.0.0",
 		})
 	})
 

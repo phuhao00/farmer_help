@@ -42,8 +42,11 @@ func ConnectDB() {
 
 	log.Println("Connected to MongoDB successfully!")
 
+	// Extract database name from MongoDB URI or use default
+	dbName := "farm_to_table"
+	
 	// Set the database
-	DB = client.Database("farmer_marketplace")
+	DB = client.Database(dbName)
 }
 
 func GetCollection(collectionName string) *mongo.Collection {

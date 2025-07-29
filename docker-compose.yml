@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   # MongoDB Database
   mongodb:
-    image: mongo:6.0
+    image: mongo:7.0
     container_name: farmer_help_mongodb
     restart: unless-stopped
     environment:
@@ -11,7 +9,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: password123
       MONGO_INITDB_DATABASE: farm_to_table
     ports:
-      - "27017:27017"
+      - "27018:27017"
     volumes:
       - mongodb_data:/data/db
       - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
@@ -23,8 +21,6 @@ services:
     build:
       context: ./server-go
       dockerfile: Dockerfile
-      args:
-        - GOPROXY=https://proxy.golang.org,direct
     container_name: farmer_help_backend
     restart: unless-stopped
     ports:
@@ -35,13 +31,17 @@ services:
       - JWT_SECRET=your-super-secret-jwt-key-for-production
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000
+      - GOPROXY=https://goproxy.cn,direct
+      - GOSUMDB=sum.golang.google.cn
+      - GO111MODULE=on
+      - GIT_TERMINAL_PROMPT=0
     depends_on:
       - mongodb
     networks:
       - farmer_help_network
     volumes:
-      - ./server-go:/app
-    command: ["./wait-for-it.sh", "mongodb:27017", "--", "./main"]
+      - ./server-go:/app/src
+    command: ["sh", "-c", "cd /app/src && ./wait-for-it.sh mongodb:27017 -t 60 -- /app/main"]
 
   # React Frontend Service
   frontend:
